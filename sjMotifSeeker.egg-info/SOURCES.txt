@@ -1,0 +1,9 @@
+README.md
+setup.py
+sjMotifSeeker.egg-info/PKG-INFO
+sjMotifSeeker.egg-info/SOURCES.txt
+sjMotifSeeker.egg-info/dependency_links.txt
+sjMotifSeeker.egg-info/entry_points.txt
+sjMotifSeeker.egg-info/top_level.txt
+source/__init__.py
+source/sjMotifSeeker.py
