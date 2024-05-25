@@ -1,30 +1,156 @@
 import argparse
+import numpy as np
+from Bio import SeqIO
+from ucsc.api import Sequence
 
 def main():
-    print("Hello World!")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("ref_genome", help = "path to reference genome")
+    parser.add_argument("-d", required = True, type = str, help = "space-delimited string of tag directories")
+    parser.add_argument("-gtf", required = True, type = str, help = "path to gene annotations")
 
+    args = parser.parse_args()
+    tag_directories = args.d.split()
+    ref_genome = args.ref_genome
+
+    for tag_directory in tag_directories:
+        analyze_peaks(tag_directory, ref_genome)
+
+    #print(Sequence.get(genome= 'mm10',chrom= '17',start=35504041,end=35504115).dna)
+    #print(Sequence.get(genome= 'mm10',chrom= '17',start=15208248,end=15208322).dna)
+    #print(Sequence.get(genome= 'mm10',chrom= '17',start=15208248,end=15208322).dna)
+
+    '''15208248	15208322
+    37079108	37079182
+    chrom_dict = SeqIO.index(ref_genome, "fasta")
+    for key in chrom_dict:
+        print(key)
+        print(chrom_dict[key][0:10])
+    '''
+
+    #chrom_dict = load_chromosomes(ref_genome)
+
+def analyze_peaks(tag_dir, ref_genome):
+    nucs = {"A": 0, "T": 1, "G": 2, "C": 3}
+    back_nucs = {0: "A", 1: "T", 2: "G", 3: "C"}
+    f = open(tag_dir, "r")
+    lines = f.readlines()
+    prev_hash = True
+    k_mers = {}
+    k = 5
+    print("Generating kmers around TF binding sites...")
+    for line in lines[:440]:
+        if line.startswith("#"):
+            continue
+        line = line.split("\t")
+        if (prev_hash):
+            freqs = np.zeros((len(Sequence.get(genome= 'mm10',chrom=line[1],start=line[2],end=line[3]).dna), 4), dtype = int)
+            prev_hash = False
+        seq = Sequence.get(genome= 'mm10',chrom=line[1],start=line[2],end=line[3]).dna.upper()
+        for i in range(len(seq)):
+            freqs[i][nucs[seq[i]]] += 1
+            if (i <= len(seq) - k):
+                k_mer = seq[i:i+k]
+                if k_mer in k_mers:
+                    k_mers[k_mer] += 1
+                else:
+                    k_mers[k_mer] = 1
+    tf_binding_kmers = dict(sorted(k_mers.items(), key=lambda item: item[1]))
+    background_kmers = load_comparison(ref_genome, k)
+
+    #normalization
+    print("Normalizing...")
+    size_data = 0
+    for key in tf_binding_kmers:
+        size_data += tf_binding_kmers[key]
+
+    size_background = 0
+    for key in background_kmers:
+        size_background += background_kmers[key]
+
+    norm_ratio = size_data/size_background
+
+    for key in background_kmers:
+        background_kmers[key] *= norm_ratio
+
+    adjusted_kmers = {}
+    for kmer in tf_binding_kmers:
+        if kmer in background_kmers:
+            adjusted_kmers[kmer] = (tf_binding_kmers[kmer] - background_kmers[kmer])
+        else:
+            adjusted_kmers[kmer] = 0
+    adjusted_kmers = dict(sorted(adjusted_kmers.items(), key=lambda item: item[1], reverse = True))
+
+    #print(tf_binding_kmers)
+    #print(background_kmers)
+    print(adjusted_kmers)
+    
+    print("Top 25 Most Overrepresented " + str(k) + "-mers:")
+    counter = 0
+    for key in adjusted_kmers:
+        print(key, adjusted_kmers[key])
+        counter+= 1
+        if counter >= 25:
+            break
+
+
+
+    '''
+    print(freqs)
+    print(np.amax(freqs))
+    print(np.amin(freqs))
+
+    chi_square = []
+
+    for i in range(len(freqs)):
+        chi_square_val = ((freqs[i][0] - 25) ** 2 + (freqs[i][1] - 25) ** 2 + (freqs[i][2] - 25) ** 2 + (freqs[i][3]- 25) ** 2) / 25
+        chi_square.append(round(np.log2(chi_square_val), 3))
+    print(chi_square)
+
+    consensus = []
+    for i in range(len(freqs)):
+        j = freqs[i].argmax()
+        #consensus.append((back_nucs[j], freqs[i][j]))
+        if chi_square[i] < 1.3:
+            consensus.append("x")
+        else:
+            consensus.append((back_nucs[j], freqs[i][j]))
+    print(consensus)
+    '''
+    return None
+
+def load_comparison(ref_filename, k):
+    print("Loading reference genome file...")
+    f = open(ref_filename, "r")
+    lines = f.readlines()
+    print("Generating background kmers...")
+    k_mer_dct = {}
+    seq = ""
+    for i in range(len(lines) // 50000):
+        j = i * 49999
+        if lines[j].startswith(">"):
+            continue
+        seq += lines[j].strip()
+
+    for i in range(len(seq)):
+        if (i <= len(seq) - k):
+            k_mer = seq[i:i+k]
+            if "N" in k_mer.upper():
+                continue
+            if k_mer in k_mer_dct:
+                k_mer_dct[k_mer] += 1
+            else:
+                k_mer_dct[k_mer] = 1
+    return dict(sorted(k_mer_dct.items(), key=lambda item: item[1]))
+    
 if __name__ == "__main__":
     main()
+
 
 # parse command line arguments
 
 #https://docs.python.org/3/library/argparse.html
 
-'''
-parser = argparse.ArgumentParser()
-parser.add_argument("dir")
-parser.add_argument("-m", required = True, type = int)
-parser.add_argument("-s", required = True, type = int) 
-parser.add_argument("-d", required = True, type = int)
-parser.add_argument("-a", action = "store_true")
-
-args = parser.parse_args()
-
-filename = args.dir
-match_score = args.m
-mismatch_penalty = args.s
-indel_penalty = args.d
-'''
 
 '''
 We would take annotated peaks.txt file and reference genome as input 
