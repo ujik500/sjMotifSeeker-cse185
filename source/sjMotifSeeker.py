@@ -1,13 +1,13 @@
 import argparse
 import numpy as np
-from Bio import SeqIO
+#from Bio import SeqIO
 from ucsc.api import Sequence
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("ref_genome", help = "path to reference genome")
     parser.add_argument("-d", required = True, type = str, help = "space-delimited string of tag directories")
-    parser.add_argument("-gtf", required = True, type = str, help = "path to gene annotations")
+    #parser.add_argument("-gtf", required = True, type = str, help = "path to gene annotations")
 
     args = parser.parse_args()
     tag_directories = args.d.split()
@@ -39,7 +39,7 @@ def analyze_peaks(tag_dir, ref_genome):
     k_mers = {}
     k = 5
     print("Generating kmers around TF binding sites...")
-    for line in lines[:440]:
+    for line in lines[:140]:
         if line.startswith("#"):
             continue
         line = line.split("\t")
