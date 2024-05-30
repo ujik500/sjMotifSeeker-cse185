@@ -16,20 +16,6 @@ def main():
     for tag_directory in tag_directories:
         analyze_peaks(tag_directory, ref_genome)
 
-    #print(Sequence.get(genome= 'mm10',chrom= '17',start=35504041,end=35504115).dna)
-    #print(Sequence.get(genome= 'mm10',chrom= '17',start=15208248,end=15208322).dna)
-    #print(Sequence.get(genome= 'mm10',chrom= '17',start=15208248,end=15208322).dna)
-
-    '''15208248	15208322
-    37079108	37079182
-    chrom_dict = SeqIO.index(ref_genome, "fasta")
-    for key in chrom_dict:
-        print(key)
-        print(chrom_dict[key][0:10])
-    '''
-
-    #chrom_dict = load_chromosomes(ref_genome)
-
 def analyze_peaks(tag_dir, ref_genome):
     nucs = {"A": 0, "T": 1, "G": 2, "C": 3}
     back_nucs = {0: "A", 1: "T", 2: "G", 3: "C"}
@@ -37,9 +23,9 @@ def analyze_peaks(tag_dir, ref_genome):
     lines = f.readlines()
     prev_hash = True
     k_mers = {}
-    k = 7
+    k = 8
     print("Generating kmers around TF binding sites...")
-    for line in lines[:540]:
+    for line in lines: # modify this line to help runtime, sacrificing some lines of peaks file
         if line.startswith("#"):
             continue
         line = line.split("\t")
@@ -91,7 +77,6 @@ def analyze_peaks(tag_dir, ref_genome):
 
     print("Merging similar kmers into motifs...")
     motifs = merge_kmers(adjusted_kmers, k)
-    print(motifs)
     for motif in motifs:
         for motif_info_block in motif:
             print("|".join([*motif_info_block[0]]), motif_info_block[3])
@@ -149,8 +134,6 @@ def merge_kmers(kmer_dct, k):
 
                 #CHECK CASE 1 (shifted 1 position)
                 if (key[1:] == seq[:-1]):
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     if start == 0: # extend left
                         for info_block in motif:
                             info_block[0] = "-" + info_block[0]
@@ -168,9 +151,7 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start + 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start - 1, end - 1, score])
-                        print("Added:", constructed_key, "| Case 1A")
 
                     else: # no extension
                         constructed_key = ""
@@ -181,15 +162,11 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start + 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start - 1, end - 1, score])
-                        print("Added:", constructed_key, "| Case 1B")
                     forward_seen.append(key)
                     break
 
                 if (key[:-1] == seq[1:]):
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     if end == len(seq_complete) - 1: # extend right
                         for info_block in motif:
                             info_block[0] += "-"
@@ -203,9 +180,7 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start - 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start + 1, end + 1, score])
-                        print("Added:", constructed_key, "| Case 1C")
 
                     else: # no extension
                         constructed_key = ""
@@ -216,16 +191,12 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start - 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start + 1, end + 1, score])
-                        print("Added:", constructed_key, "| Case 1D")
                     forward_seen.append(key)
                     break
 
                 #Check Case 2 (1 mismatch)
                 if num_mismatch_same_len(key, seq) == 1: 
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     constructed_key = ""
                     for i in range(len(seq_complete)):
                         if i < start:
@@ -236,7 +207,6 @@ def merge_kmers(kmer_dct, k):
                             constructed_key += "-"
                     motif.append([constructed_key, start, end, score])
                     forward_seen.append(key)
-                    print("Added:", constructed_key, "| Case 2")
                     break
 
         pseudoindex += 1
@@ -253,12 +223,9 @@ def merge_kmers(kmer_dct, k):
             for seq_info in motif:
                 seq_complete, start, end, seq_score = seq_info
                 seq = seq_complete[start: end + 1]
-                print("Candidate:", key, "| already in motif:", seq)
 
                 #CHECK CASE 1 (shifted 1 position)
                 if (key[1:] == seq[:-1]):
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     if start == 0: # extend left
                         for info_block in motif:
                             info_block[0] = "-" + info_block[0]
@@ -276,9 +243,7 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start + 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start - 1, end - 1, score])
-                        print("Added:", constructed_key, "| Case 1A")
 
                     else: # no extension
                         constructed_key = ""
@@ -289,15 +254,11 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start + 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start - 1, end - 1, score])
-                        print("Added:", constructed_key, "| Case 1B")
                     reverse_seen.append(key)
                     break
 
                 if (key[:-1] == seq[1:]):
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     if end == len(seq_complete) - 1: # extend right
                         for info_block in motif:
                             info_block[0] += "-"
@@ -311,9 +272,7 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start - 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start + 1, end + 1, score])
-                        print("Added:", constructed_key, "| Case 1C")
 
                     else: # no extension
                         constructed_key = ""
@@ -324,16 +283,12 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start - 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start + 1, end + 1, score])
-                        print("Added:", constructed_key, "| Case 1D")
                     reverse_seen.append(key)
                     break
 
                 #Check Case 2 (1 mismatch)
                 if num_mismatch_same_len(key, seq) == 1: 
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     constructed_key = ""
                     for i in range(len(seq_complete)):
                         if i < start:
@@ -344,7 +299,6 @@ def merge_kmers(kmer_dct, k):
                             constructed_key += "-"
                     motif.append([constructed_key, start, end, score])
                     reverse_seen.append(key)
-                    print("Added:", constructed_key, "| Case 2")
                     break
 
         pseudoindex += 1
@@ -362,12 +316,9 @@ def merge_kmers(kmer_dct, k):
             for seq_info in motif:
                 seq_complete, start, end, seq_score = seq_info
                 seq = seq_complete[start: end + 1]
-                print("Candidate:", key, "| already in motif:", seq)
 
                 #CHECK CASE 1 (shifted 1 position)
                 if (key[1:] == seq[:-1]):
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     if start == 0: # extend left
                         for info_block in motif:
                             info_block[0] = "-" + info_block[0]
@@ -385,9 +336,7 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start - 1, end - 1, score])
-                        print("Added:", constructed_key, "| Case 1A")
 
                     else: # no extension
                         constructed_key = ""
@@ -398,16 +347,12 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start + 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start - 1, end - 1, score])
-                        print("Added:", constructed_key, "| Case 1B")
                     forward_seen.append(key)
                     break
 
                 #Check Case 2 (1 mismatch)
                 if num_mismatch_same_len(key, seq) == 1: 
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     constructed_key = ""
                     for i in range(len(seq_complete)):
                         if i < start:
@@ -418,7 +363,6 @@ def merge_kmers(kmer_dct, k):
                             constructed_key += "-"
                     motif.append([constructed_key, start, end, score])
                     forward_seen.append(key)
-                    print("Added:", constructed_key, "| Case 2")
                     break
         pseudoindex += 1
 
@@ -434,12 +378,9 @@ def merge_kmers(kmer_dct, k):
             for seq_info in motif:
                 seq_complete, start, end, seq_score = seq_info
                 seq = seq_complete[start: end + 1]
-                print("Candidate:", key, "| already in motif:", seq)
 
                 #CHECK CASE 1 (shifted 1 position)
                 if (key[1:] == seq[:-1]):
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     if start == 0: # extend left
                         for info_block in motif:
                             info_block[0] = "-" + info_block[0]
@@ -457,9 +398,7 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start - 1, end - 1, score])
-                        print("Added:", constructed_key, "| Case 1A")
 
                     else: # no extension
                         constructed_key = ""
@@ -470,16 +409,12 @@ def merge_kmers(kmer_dct, k):
                                 constructed_key += key[i - start + 1]
                             else:                                
                                 constructed_key += "-"
-                            print(constructed_key)
                         motif.append([constructed_key, start - 1, end - 1, score])
-                        print("Added:", constructed_key, "| Case 1B")
                     reverse_seen.append(key)
                     break
 
                 #Check Case 2 (1 mismatch)
                 if num_mismatch_same_len(key, seq) == 1: 
-                    print(motif)
-                    print("Key", key, "is a close match with", seq)
                     constructed_key = ""
                     for i in range(len(seq_complete)):
                         if i < start:
@@ -490,7 +425,6 @@ def merge_kmers(kmer_dct, k):
                             constructed_key += "-"
                     motif.append([constructed_key, start, end, score])
                     reverse_seen.append(key)
-                    print("Added:", constructed_key, "| Case 2")
                     break
         pseudoindex += 1
     return motifs
