@@ -37,9 +37,9 @@ def analyze_peaks(tag_dir, ref_genome):
     lines = f.readlines()
     prev_hash = True
     k_mers = {}
-    k = 5
+    k = 7
     print("Generating kmers around TF binding sites...")
-    for line in lines[:140]:
+    for line in lines[:540]:
         if line.startswith("#"):
             continue
         line = line.split("\t")
@@ -76,15 +76,11 @@ def analyze_peaks(tag_dir, ref_genome):
     adjusted_kmers = {}
     for kmer in tf_binding_kmers:
         if kmer in background_kmers:
-            adjusted_kmers[kmer] = (tf_binding_kmers[kmer] - background_kmers[kmer])
+            adjusted_kmers[kmer] = round(tf_binding_kmers[kmer] - background_kmers[kmer], 3)
         else:
             adjusted_kmers[kmer] = 0
     adjusted_kmers = dict(sorted(adjusted_kmers.items(), key=lambda item: item[1], reverse = True))
 
-    #print(tf_binding_kmers)
-    #print(background_kmers)
-    print(adjusted_kmers)
-    
     print("Top 25 Most Overrepresented " + str(k) + "-mers:")
     counter = 0
     for key in adjusted_kmers:
@@ -93,30 +89,13 @@ def analyze_peaks(tag_dir, ref_genome):
         if counter >= 25:
             break
 
+    print("Merging similar kmers into motifs...")
+    motifs = merge_kmers(adjusted_kmers, k)
+    print(motifs)
+    for motif in motifs:
+        for motif_info_block in motif:
+            print("|".join([*motif_info_block[0]]), motif_info_block[3])
 
-
-    '''
-    print(freqs)
-    print(np.amax(freqs))
-    print(np.amin(freqs))
-
-    chi_square = []
-
-    for i in range(len(freqs)):
-        chi_square_val = ((freqs[i][0] - 25) ** 2 + (freqs[i][1] - 25) ** 2 + (freqs[i][2] - 25) ** 2 + (freqs[i][3]- 25) ** 2) / 25
-        chi_square.append(round(np.log2(chi_square_val), 3))
-    print(chi_square)
-
-    consensus = []
-    for i in range(len(freqs)):
-        j = freqs[i].argmax()
-        #consensus.append((back_nucs[j], freqs[i][j]))
-        if chi_square[i] < 1.3:
-            consensus.append("x")
-        else:
-            consensus.append((back_nucs[j], freqs[i][j]))
-    print(consensus)
-    '''
     return None
 
 def load_comparison(ref_filename, k):
@@ -142,6 +121,399 @@ def load_comparison(ref_filename, k):
             else:
                 k_mer_dct[k_mer] = 1
     return dict(sorted(k_mer_dct.items(), key=lambda item: item[1]))
+
+# call only on dictionaries sorted from highest to lowest score
+def merge_kmers(kmer_dct, k):
+    motifs = []
+    forward_seen = []
+    reverse_seen = []
+
+    # FORWARD PASS 1
+    pseudoindex = 1
+    for key in kmer_dct:
+        score = kmer_dct[key]
+        # create root to build off of
+        if pseudoindex == 1:
+            motifs.append([[key, 0, k - 1, score]])
+            forward_seen.append(key)
+            pseudoindex += 1
+            continue
+
+        elif pseudoindex >= 50:
+            break
+
+        for motif in motifs:
+            for seq_info in motif:
+                seq_complete, start, end, seq_score = seq_info
+                seq = seq_complete[start: end + 1]
+
+                #CHECK CASE 1 (shifted 1 position)
+                if (key[1:] == seq[:-1]):
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    if start == 0: # extend left
+                        for info_block in motif:
+                            info_block[0] = "-" + info_block[0]
+                            info_block[1] += 1
+                            info_block[2] += 1
+                        start += 1
+                        end += 1
+                        seq_complete = "-" + seq_complete
+
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i - start + 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start - 1, end - 1, score])
+                        print("Added:", constructed_key, "| Case 1A")
+
+                    else: # no extension
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i - start + 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start - 1, end - 1, score])
+                        print("Added:", constructed_key, "| Case 1B")
+                    forward_seen.append(key)
+                    break
+
+                if (key[:-1] == seq[1:]):
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    if end == len(seq_complete) - 1: # extend right
+                        for info_block in motif:
+                            info_block[0] += "-"
+                        seq_complete += "-"
+
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start + 1:
+                                constructed_key += "-"
+                            elif i < end + 2:
+                                constructed_key += key[i - start - 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start + 1, end + 1, score])
+                        print("Added:", constructed_key, "| Case 1C")
+
+                    else: # no extension
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i - start - 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start + 1, end + 1, score])
+                        print("Added:", constructed_key, "| Case 1D")
+                    forward_seen.append(key)
+                    break
+
+                #Check Case 2 (1 mismatch)
+                if num_mismatch_same_len(key, seq) == 1: 
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    constructed_key = ""
+                    for i in range(len(seq_complete)):
+                        if i < start:
+                            constructed_key += "-"
+                        elif i <= end:
+                            constructed_key += key[i - start]
+                        else:                                
+                            constructed_key += "-"
+                    motif.append([constructed_key, start, end, score])
+                    forward_seen.append(key)
+                    print("Added:", constructed_key, "| Case 2")
+                    break
+
+        pseudoindex += 1
+
+    # REVERSE PASS 1
+    pseudoindex = 1
+    for key in kmer_dct:
+        score = kmer_dct[key]
+        key = rev_com(key)
+        if pseudoindex >= 50:
+            break
+
+        for motif in motifs:
+            for seq_info in motif:
+                seq_complete, start, end, seq_score = seq_info
+                seq = seq_complete[start: end + 1]
+                print("Candidate:", key, "| already in motif:", seq)
+
+                #CHECK CASE 1 (shifted 1 position)
+                if (key[1:] == seq[:-1]):
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    if start == 0: # extend left
+                        for info_block in motif:
+                            info_block[0] = "-" + info_block[0]
+                            info_block[1] += 1
+                            info_block[2] += 1
+                        start += 1
+                        end += 1
+                        seq_complete = "-" + seq_complete
+
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i - start + 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start - 1, end - 1, score])
+                        print("Added:", constructed_key, "| Case 1A")
+
+                    else: # no extension
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i - start + 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start - 1, end - 1, score])
+                        print("Added:", constructed_key, "| Case 1B")
+                    reverse_seen.append(key)
+                    break
+
+                if (key[:-1] == seq[1:]):
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    if end == len(seq_complete) - 1: # extend right
+                        for info_block in motif:
+                            info_block[0] += "-"
+                        seq_complete += "-"
+
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start + 1:
+                                constructed_key += "-"
+                            elif i < end + 2:
+                                constructed_key += key[i - start - 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start + 1, end + 1, score])
+                        print("Added:", constructed_key, "| Case 1C")
+
+                    else: # no extension
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i - start - 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start + 1, end + 1, score])
+                        print("Added:", constructed_key, "| Case 1D")
+                    reverse_seen.append(key)
+                    break
+
+                #Check Case 2 (1 mismatch)
+                if num_mismatch_same_len(key, seq) == 1: 
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    constructed_key = ""
+                    for i in range(len(seq_complete)):
+                        if i < start:
+                            constructed_key += "-"
+                        elif i <= end:
+                            constructed_key += key[i - start]
+                        else:                                
+                            constructed_key += "-"
+                    motif.append([constructed_key, start, end, score])
+                    reverse_seen.append(key)
+                    print("Added:", constructed_key, "| Case 2")
+                    break
+
+        pseudoindex += 1
+
+    # FORWARD PASS 2
+    pseudoindex = 1
+    for key in kmer_dct:
+        score = kmer_dct[key]
+        if pseudoindex >= 50:
+            break
+
+        for motif in motifs:
+            if key in forward_seen:
+                continue
+            for seq_info in motif:
+                seq_complete, start, end, seq_score = seq_info
+                seq = seq_complete[start: end + 1]
+                print("Candidate:", key, "| already in motif:", seq)
+
+                #CHECK CASE 1 (shifted 1 position)
+                if (key[1:] == seq[:-1]):
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    if start == 0: # extend left
+                        for info_block in motif:
+                            info_block[0] = "-" + info_block[0]
+                            info_block[1] += 1
+                            info_block[2] += 1
+                        start += 1
+                        end += 1
+                        seq_complete = "-" + seq_complete
+
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start - 1, end - 1, score])
+                        print("Added:", constructed_key, "| Case 1A")
+
+                    else: # no extension
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i - start + 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start - 1, end - 1, score])
+                        print("Added:", constructed_key, "| Case 1B")
+                    forward_seen.append(key)
+                    break
+
+                #Check Case 2 (1 mismatch)
+                if num_mismatch_same_len(key, seq) == 1: 
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    constructed_key = ""
+                    for i in range(len(seq_complete)):
+                        if i < start:
+                            constructed_key += "-"
+                        elif i <= end:
+                            constructed_key += key[i - start]
+                        else:                                
+                            constructed_key += "-"
+                    motif.append([constructed_key, start, end, score])
+                    forward_seen.append(key)
+                    print("Added:", constructed_key, "| Case 2")
+                    break
+        pseudoindex += 1
+
+    # REVERSE PASS 2
+    pseudoindex = 1
+    for key in kmer_dct:
+        if pseudoindex >= 50:
+            break
+
+        for motif in motifs:
+            if key in reverse_seen:
+                continue
+            for seq_info in motif:
+                seq_complete, start, end, seq_score = seq_info
+                seq = seq_complete[start: end + 1]
+                print("Candidate:", key, "| already in motif:", seq)
+
+                #CHECK CASE 1 (shifted 1 position)
+                if (key[1:] == seq[:-1]):
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    if start == 0: # extend left
+                        for info_block in motif:
+                            info_block[0] = "-" + info_block[0]
+                            info_block[1] += 1
+                            info_block[2] += 1
+                        start += 1
+                        end += 1
+                        seq_complete = "-" + seq_complete
+
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start - 1, end - 1, score])
+                        print("Added:", constructed_key, "| Case 1A")
+
+                    else: # no extension
+                        constructed_key = ""
+                        for i in range(len(seq_complete)):
+                            if i < start - 1:
+                                constructed_key += "-"
+                            elif i < end:
+                                constructed_key += key[i - start + 1]
+                            else:                                
+                                constructed_key += "-"
+                            print(constructed_key)
+                        motif.append([constructed_key, start - 1, end - 1, score])
+                        print("Added:", constructed_key, "| Case 1B")
+                    reverse_seen.append(key)
+                    break
+
+                #Check Case 2 (1 mismatch)
+                if num_mismatch_same_len(key, seq) == 1: 
+                    print(motif)
+                    print("Key", key, "is a close match with", seq)
+                    constructed_key = ""
+                    for i in range(len(seq_complete)):
+                        if i < start:
+                            constructed_key += "-"
+                        elif i <= end:
+                            constructed_key += key[i - start]
+                        else:                                
+                            constructed_key += "-"
+                    motif.append([constructed_key, start, end, score])
+                    reverse_seen.append(key)
+                    print("Added:", constructed_key, "| Case 2")
+                    break
+        pseudoindex += 1
+    return motifs
+
+def num_mismatch_same_len(seq1, seq2):
+    mismatch = 0
+    for i in range(len(seq1)):
+        if seq1[i] != seq2[i]:
+            mismatch += 1
+    return mismatch
+
+def rev_com(seq):
+    reverse = ""
+    for char in seq:
+        if char == "A":
+            reverse = "T" + reverse
+        elif char == "T":
+            reverse = "A" + reverse
+        elif char == "G":
+            reverse = "C" + reverse
+        else:
+            reverse = "G" + reverse
+    return reverse
     
 if __name__ == "__main__":
     main()
