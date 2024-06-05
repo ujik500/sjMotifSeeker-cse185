@@ -11,21 +11,24 @@ def main():
     parser.add_argument("-c", required = True, type = str, help = "reference genome code for UCSC genome browser")
     parser.add_argument("-d", required = True, type = str, help = "space-delimited string of peak file paths")
     parser.add_argument("-k", required = False, type = int, default = 7, help = "size of k-mers to use in analysis of background vs. TF sample")
+    parser.add_argument("-q", required = False, type = bool, default = False, help = "set to true if using bed file instead of peaks.txt")
+
 
     args = parser.parse_args()
     peak_files = args.d.split()
     ref_genome = args.ref_genome
     ucsc_code = args.c
     k = args.k
+    bed_status = args.q
 
     for peak_file in peak_files:
         print("Starting processing on", peak_file,"\n")
-        motifs = analyze_peaks(peak_file, ref_genome, k, ucsc_code)
+        motifs = analyze_peaks(peak_file, ref_genome, k, ucsc_code, bed_status)
         print("Generating motif logo...")
         for motif in motifs:
             generate_motif_image(motif, peak_file)
 
-def analyze_peaks(peak_file, ref_genome, k, genome_code):
+def analyze_peaks(peak_file, ref_genome, k, genome_code, bed_status):
     nucs = {"A": 0, "T": 1, "G": 2, "C": 3}
     f = open(peak_file, "r")
     lines = f.readlines()
@@ -44,18 +47,27 @@ def analyze_peaks(peak_file, ref_genome, k, genome_code):
             print("75% complete")
         line = line.split("\t")
         if (prev_hash):
-            freqs = np.zeros((len(Sequence.get(genome=genome_code,chrom=line[1],start=line[2],end=line[3]).dna), 4), dtype = int)
+            if (bed_status):
+                freqs = np.zeros((len(Sequence.get(genome=genome_code,chrom=int(line[0][3:]),start=line[1],end=line[2]).dna), 4), dtype = int)
+            else:
+                freqs = np.zeros((len(Sequence.get(genome=genome_code,chrom=line[1],start=line[2],end=line[3]).dna), 4), dtype = int)
             prev_hash = False
-        seq = Sequence.get(genome=genome_code,chrom=line[1],start=line[2],end=line[3]).dna.upper()
-        for i in range(len(seq)):
-            freqs[i][nucs[seq[i]]] += 1
-            if (i <= len(seq) - k):
-                k_mer = seq[i:i+k]
-                if k_mer in k_mers:
-                    k_mers[k_mer] += 1
-                else:
-                    k_mers[k_mer] = 1
-        count += 1
+        if (bed_status):
+            seq = Sequence.get(genome=genome_code,chrom=int(line[0][3:]),start=line[1],end=line[2]).dna.upper()[:len(freqs)]
+        else:
+            seq = Sequence.get(genome=genome_code,chrom=line[1],start=line[2],end=line[3]).dna.upper()
+        try:
+            for i in range(len(seq)):
+                freqs[i][nucs[seq[i]]] += 1
+                if (i <= len(seq) - k):
+                    k_mer = seq[i:i+k]
+                    if k_mer in k_mers:
+                        k_mers[k_mer] += 1
+                    else:
+                        k_mers[k_mer] = 1
+            count += 1
+        except ValueError:
+            continue
     tf_binding_kmers = dict(sorted(k_mers.items(), key=lambda item: item[1]))
     background_kmers = load_comparison(ref_genome, k)
 
