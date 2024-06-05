@@ -48,15 +48,15 @@ def analyze_peaks(peak_file, ref_genome, k, genome_code, bed_status):
         line = line.split("\t")
         if (prev_hash):
             if (bed_status):
-                freqs = np.zeros((len(Sequence.get(genome=genome_code,chrom=int(line[0][3:]),start=line[1],end=line[2]).dna), 4), dtype = int)
+                freqs = np.zeros((len(Sequence.get(genome=genome_code,chrom=line[0][3:],start=line[1],end=line[2]).dna), 4), dtype = int)
             else:
                 freqs = np.zeros((len(Sequence.get(genome=genome_code,chrom=line[1],start=line[2],end=line[3]).dna), 4), dtype = int)
             prev_hash = False
-        if (bed_status):
-            seq = Sequence.get(genome=genome_code,chrom=int(line[0][3:]),start=line[1],end=line[2]).dna.upper()[:len(freqs)]
-        else:
-            seq = Sequence.get(genome=genome_code,chrom=line[1],start=line[2],end=line[3]).dna.upper()
         try:
+            if (bed_status):
+                seq = Sequence.get(genome=genome_code,chrom=line[0][3:],start=line[1],end=line[2]).dna.upper()[:len(freqs)]
+            else:
+                seq = Sequence.get(genome=genome_code,chrom=line[1],start=line[2],end=line[3]).dna.upper()
             for i in range(len(seq)):
                 freqs[i][nucs[seq[i]]] += 1
                 if (i <= len(seq) - k):
@@ -66,7 +66,7 @@ def analyze_peaks(peak_file, ref_genome, k, genome_code, bed_status):
                     else:
                         k_mers[k_mer] = 1
             count += 1
-        except ValueError:
+        except:
             continue
     tf_binding_kmers = dict(sorted(k_mers.items(), key=lambda item: item[1]))
     background_kmers = load_comparison(ref_genome, k)
