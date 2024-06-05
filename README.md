@@ -5,7 +5,7 @@ Utility: De Novo Motif Finder for Transcription Factors
 
 Prerequisite Downloads: 
 1. **numpy** for data processing: ```pip install numpy```
-2. **UCSC Rest API** to query reference genomes: ```pip install ucsc-genomic api```
+2. **UCSC Rest API** to query reference genomes: ```pip install ucsc-genomic-api```
 3. **argparse** to parse command line arguments: ```pip install argparse```
 4. You will need the GRCm38.fa reference genome file (can be found on DataHub at
 ```~/public/genomes/GRCm38.fa```)

@@ -1,58 +1,34 @@
-import source.sjMotifSeeker
+import logomaker
+import pandas as pd
+import matplotlib.pyplot as plt
 
-k = 6
+trimmed_pfm = [[3, 6, 0, 0], [9, 0, 1, 0], [0, 10, 0, 0], [0, 10, 0, 0], [10, 0, 0, 0], [0, 10, 0, 0], [8, 0, 0, 0], [0, 6, 0, 0]]
+for row in trimmed_pfm:
+    total = sum(row)
+    for i in range(len(row)):
+        row[i] = row[i] / total
+print(trimmed_pfm)
+''' 
+trimmed_pfm = pd.DataFrame(trimmed_pfm, dtype = int)
+trimmed_pfm.columns = ["A", "C", "G", "T"]
+print(trimmed_pfm)
+ss_logo = logomaker.Logo(trimmed_pfm,
+                         width=.4,
+                         vpad=.05,
+                         fade_probabilities=False,
+                         stack_order='small_on_top',
+                         color_scheme='classic')
 
-Oct4_dct6 = {
-"TGCAAA": 49.29438543247345, #1
-"TTTGCA": 37.29438543247345, #2
-"TTAGCA": 36.801593323217,   #2
-"ATGCAA": 36.60318664643399, #1
-"GCAAAT": 34.56638846737481, #2
-"AATGCA": 31.56638846737481, #1
-"AAATGC": 30.56638846737481, #1
-"CAAATG": 30.02238239757208, #1
-"TATGCA": 27.94878603945372, #1
-"AGCAGC": 26.45599393019727,
-"TGCTAA": 25.875189681335357,#1
-"TGCATA": 25.56638846737481, #1
-"TTGCAT": 24.52959028831563, #1
-"TGCATG": 24.49279210925645,
-"CAAAGG": 22.985584218512898 #1
-}
+# style using Logo methods
+ss_logo.style_spines(spines=['left', 'right'], visible=False)
 
-Oct4_dct7 = {
-"TGCAAAT": 36.128,
-"ATGCAAA": 33.547,
-"TTTGCAT": 27.419,
-"TTAGCAT": 27.355,
-"ATTTGCA": 22.838,
-"CAAATGC": 18.709,
-"AAATGCA": 18.483,
-"ATGCTAA": 17.483,
-"ATAACAA": 17.193,
-"TTGTCAT": 16.774,
-"TGCTAAT": 16.483,
-"ATGCGCA": 16.355,
-"TATGCAA": 15.838,
-"TTGTTAT": 15.709,
-"AATGCAA": 15.483,
-"TGTTATG": 15.419,
-"TTTACAT": 15.419,
-"ATGTTAA": 15.419,
-"ACAAAGG": 15.128,
-"GCAAATG": 14.838,
-"TTGCAAA": 14.838,
-"TTTGAAT": 14.774,
-"ATGACAA": 14.709,
-"CATAACA": 14.128,
-"TGCAGAT": 14.128
-}
+# style using Axes methods
+ss_logo.ax.set_xticks(range(len(trimmed_pfm)))
+ss_logo.ax.set_xticklabels('%+d'%x for x in [-3, -2, -1, 1, 2, 3, 4, 5])
+ss_logo.ax.set_yticks([0, .5, 1])
+ss_logo.ax.axvline(2.5, color='k', linewidth=1, linestyle=':')
+ss_logo.ax.set_ylabel('probability')
 
-motifs = source.sjMotifSeeker.merge_kmers(Oct4_dct7, 7)
-print(motifs)
-for motif in motifs:
-    for motif_info_block in motif:
-        print("|".join([*motif_info_block[0]]), motif_info_block[3])
-
-
-print(source.sjMotifSeeker.rev_com("ATGACTATAGCGCATAC"))
+plt.savefig('logo.pdf')
+plt.show()
+'''
