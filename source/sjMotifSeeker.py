@@ -1,38 +1,52 @@
 import argparse
 import numpy as np
-#from Bio import SeqIO
+import pandas as pd
+import matplotlib.pyplot as plt
 from ucsc.api import Sequence
+import logomaker
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("ref_genome", help = "path to reference genome")
-    parser.add_argument("-d", required = True, type = str, help = "space-delimited string of tag directories")
-    #parser.add_argument("-gtf", required = True, type = str, help = "path to gene annotations")
+    parser.add_argument("-c", required = True, type = str, help = "reference genome code for UCSC genome browser")
+    parser.add_argument("-d", required = True, type = str, help = "space-delimited string of peak file paths")
+    parser.add_argument("-k", required = False, type = int, default = 7, help = "size of k-mers to use in analysis of background vs. TF sample")
 
     args = parser.parse_args()
-    tag_directories = args.d.split()
+    peak_files = args.d.split()
     ref_genome = args.ref_genome
+    ucsc_code = args.c
+    k = args.k
 
-    for tag_directory in tag_directories:
-        analyze_peaks(tag_directory, ref_genome)
+    for peak_file in peak_files:
+        print("Starting processing on", peak_file,"\n")
+        motifs = analyze_peaks(peak_file, ref_genome, k, ucsc_code)
+        print("Generating motif logo...")
+        for motif in motifs:
+            generate_motif_image(motif, peak_file)
 
-def analyze_peaks(tag_dir, ref_genome):
+def analyze_peaks(peak_file, ref_genome, k, genome_code):
     nucs = {"A": 0, "T": 1, "G": 2, "C": 3}
-    back_nucs = {0: "A", 1: "T", 2: "G", 3: "C"}
-    f = open(tag_dir, "r")
+    f = open(peak_file, "r")
     lines = f.readlines()
     prev_hash = True
     k_mers = {}
-    k = 8
     print("Generating kmers around TF binding sites...")
-    for line in lines: # modify this line to help runtime, sacrificing some lines of peaks file
+    count = 0
+    for line in lines[:2100]: # modify this line to help runtime, sacrificing some lines of peaks file
         if line.startswith("#"):
             continue
+        if count == len(lines) // 4:
+            print("25% complete")
+        elif count == len(lines) // 2:
+            print("50% complete")
+        elif count == 3 * len(lines) // 4:
+            print("75% complete")
         line = line.split("\t")
         if (prev_hash):
-            freqs = np.zeros((len(Sequence.get(genome= 'mm10',chrom=line[1],start=line[2],end=line[3]).dna), 4), dtype = int)
+            freqs = np.zeros((len(Sequence.get(genome=genome_code,chrom=line[1],start=line[2],end=line[3]).dna), 4), dtype = int)
             prev_hash = False
-        seq = Sequence.get(genome= 'mm10',chrom=line[1],start=line[2],end=line[3]).dna.upper()
+        seq = Sequence.get(genome=genome_code,chrom=line[1],start=line[2],end=line[3]).dna.upper()
         for i in range(len(seq)):
             freqs[i][nucs[seq[i]]] += 1
             if (i <= len(seq) - k):
@@ -41,6 +55,7 @@ def analyze_peaks(tag_dir, ref_genome):
                     k_mers[k_mer] += 1
                 else:
                     k_mers[k_mer] = 1
+        count += 1
     tf_binding_kmers = dict(sorted(k_mers.items(), key=lambda item: item[1]))
     background_kmers = load_comparison(ref_genome, k)
 
@@ -81,7 +96,7 @@ def analyze_peaks(tag_dir, ref_genome):
         for motif_info_block in motif:
             print("|".join([*motif_info_block[0]]), motif_info_block[3])
 
-    return None
+    return motifs
 
 def load_comparison(ref_filename, k):
     print("Loading reference genome file...")
@@ -90,8 +105,8 @@ def load_comparison(ref_filename, k):
     print("Generating background kmers...")
     k_mer_dct = {}
     seq = ""
-    for i in range(len(lines) // 50000):
-        j = i * 49999
+    for i in range(len(lines) // 100000):
+        j = i * 99999
         if lines[j].startswith(">"):
             continue
         seq += lines[j].strip()
@@ -428,6 +443,62 @@ def merge_kmers(kmer_dct, k):
                     break
         pseudoindex += 1
     return motifs
+
+def generate_motif_image(motif, peak_file):
+    height = len(motif)
+    cutoff = height * 0.8
+    pfm = []
+    blanks = []
+    for motif_info_block in motif:
+        seq = motif_info_block[0]
+        if len(blanks) == 0:
+            for nuc in seq:
+                blanks.append(0)
+                pfm.append([0,0,0,0])
+        for i in range(len(seq)):
+            if seq[i] == "-":
+                blanks[i] += 1
+            if seq[i] == "A":
+                pfm[i][0] += 1
+            if seq[i] == "C":
+                pfm[i][1] += 1
+            if seq[i] == "G":
+                pfm[i][2] += 1
+            if seq[i] == "T":
+                pfm[i][3] += 1
+    
+    trimmed_pfm = []
+    for i in range(len(blanks)):
+        if blanks[i] < cutoff:
+            trimmed_pfm.append(pfm[i])
+
+    for row in trimmed_pfm:
+        total = sum(row)
+        for i in range(len(row)):
+            row[i] = row[i] / total
+
+    print(trimmed_pfm)
+    trimmed_pfm = pd.DataFrame(trimmed_pfm, dtype = float)
+    trimmed_pfm.columns = ["A", "C", "G", "T"]
+    print(trimmed_pfm)
+    ss_logo = logomaker.Logo(trimmed_pfm,
+                        width=.4,
+                        vpad=.05,
+                        fade_probabilities=False,
+                        stack_order='small_on_top',
+                        color_scheme='classic')
+
+    # style using Logo methods
+    ss_logo.style_spines(spines=['left', 'right'], visible=False)
+
+    # style using Axes methods
+    ss_logo.ax.set_yticks([0, .5, 1])
+    ss_logo.ax.axvline(2.5, color='k', linewidth=1, linestyle=':')
+    ss_logo.ax.set_ylabel('probability')
+
+    plt.savefig(peak_file + '.logo.png')
+    plt.show()
+    return None
 
 def num_mismatch_same_len(seq1, seq2):
     mismatch = 0
