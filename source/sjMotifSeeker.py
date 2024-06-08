@@ -117,8 +117,8 @@ def load_comparison(ref_filename, k):
     print("Generating background kmers...")
     k_mer_dct = {}
     seq = ""
-    for i in range(len(lines) // 100000):
-        j = i * 99999
+    for i in range(len(lines) // 50000):
+        j = i * 49999
         if lines[j].startswith(">"):
             continue
         seq += lines[j].strip()
