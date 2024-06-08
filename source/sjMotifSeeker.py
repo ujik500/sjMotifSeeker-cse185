@@ -10,8 +10,8 @@ def main():
     parser.add_argument("ref_genome", help = "path to reference genome")
     parser.add_argument("-c", required = True, type = str, help = "reference genome code for UCSC genome browser")
     parser.add_argument("-d", required = True, type = str, help = "space-delimited string of peak file paths")
-    parser.add_argument("-k", required = False, type = int, default = 7, help = "size of k-mers to use in analysis of background vs. TF sample")
-    parser.add_argument("-q", required = False, type = bool, default = False, help = "set to true if using bed file instead of peaks.txt")
+    parser.add_argument("-k", required = False, type = int, default = 7, help = "size of k-mers to use in analysis of background vs. TF sample (default 7)")
+    parser.add_argument("-q", required = False, type = bool, default = False, help = "set to True if using bed file instead of peaks.txt (default False)")
 
 
     args = parser.parse_args()
@@ -36,7 +36,7 @@ def analyze_peaks(peak_file, ref_genome, k, genome_code, bed_status):
     k_mers = {}
     print("Generating kmers around TF binding sites...")
     count = 0
-    for line in lines[:2100]: # modify this line to help runtime, sacrificing some lines of peaks file
+    for line in lines: # modify this line to help runtime, sacrificing some lines of peaks file
         if line.startswith("#"):
             continue
         if count == len(lines) // 4:

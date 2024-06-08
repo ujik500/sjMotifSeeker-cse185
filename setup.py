@@ -2,7 +2,7 @@ from setuptools import *
 
 setup(
     name = "sjMotifSeeker",
-    version = "1.0",
+    version = "2.0",
     description = "CSE 185 Project: Motif Finding",
     author = "Jack Kissinger & Sujana Sreenivasan",
     author_email = "jkissinger@ucsd.edu",
